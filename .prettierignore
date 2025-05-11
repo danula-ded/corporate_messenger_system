@@ -1,0 +1,10 @@
+# Ignore artifacts:
+build
+coverage
+*.yml
+*.yaml
+*.json
+*.md
+*.txt
+*.csv
+*.log

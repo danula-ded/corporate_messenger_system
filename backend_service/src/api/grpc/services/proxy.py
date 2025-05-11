@@ -1,6 +1,7 @@
 import json
 import httpx
 import datetime
+from base64 import b64encode
 
 import grpc
 import jwt
@@ -18,6 +19,7 @@ backend_key = {
     'expire_at': datetime.datetime.now(),
 }
 
+
 class ProxyService(proxy_pb2_grpc.CentrifugoProxyServicer):
     @staticmethod
     async def serve() -> None:
@@ -34,6 +36,7 @@ class ProxyService(proxy_pb2_grpc.CentrifugoProxyServicer):
     ) -> proxy_pb2.ConnectResponse:
         data = json.loads(request.data.decode())
         global client_key
+
         if not client_key:
             async with httpx.AsyncClient() as client:
                 config_data = (await client.get('http://keycloak:8080/realms/myrealm')).json()
@@ -42,8 +45,12 @@ class ProxyService(proxy_pb2_grpc.CentrifugoProxyServicer):
                 client_key = f'{key_begin}{client_key}'
             if not client_key.endswith(key_end):
                 client_key = f'{client_key}{key_end}'
-        token_data =jwt.decode(data['token'], client_key, algorithms=['RS256'], audience='account', verify=True)
+
+        token = data['token']
+        token_data = jwt.decode(token, client_key, algorithms=['RS256'], audience='account', verify=True)
         user_id = token_data['sub']
+        username = token_data.get('preferred_username', 'unknown')
+
         async with engine.connect() as connection:
             querier = ws_requests.AsyncQuerier(connection)
             user = await querier.get_user_by_id(id=user_id)
@@ -52,9 +59,7 @@ class ProxyService(proxy_pb2_grpc.CentrifugoProxyServicer):
                     async with httpx.AsyncClient() as client:
                         backend_token = await client.post(
                             'http://keycloak:8080/realms/myrealm/protocol/openid-connect/token',
-                            headers={
-                                'Content-Type': 'application/x-www-form-urlencoded',
-                            },
+                            headers={'Content-Type': 'application/x-www-form-urlencoded'},
                             data={
                                 'client_id': 'backend',
                                 'grant_type': 'client_credentials',
@@ -64,32 +69,29 @@ class ProxyService(proxy_pb2_grpc.CentrifugoProxyServicer):
                         backend_token = backend_token.json()
                     backend_key['token'] = backend_token['access_token']
                     backend_key['expire_at'] = datetime.datetime.now() + datetime.timedelta(seconds=backend_token['expires_in'])
+
                 async with httpx.AsyncClient() as client:
                     kc_user_data = (await client.get(
                         f'http://keycloak:8080/admin/realms/myrealm/users/{user_id}',
-                        headers={
-                            'Authorization': f'Bearer {backend_key["token"]}'
-                        }
+                        headers={'Authorization': f'Bearer {backend_key["token"]}'}
                     )).json()
-                user_data = {
-                    'id': kc_user_data['id'],
-                    'username': kc_user_data['username'],
-                    'given_name': kc_user_data['firstName'],
-                    'family_name': kc_user_data['lastName'],
-                    'email': kc_user_data['email'],
-                }
+
                 await querier.create_user(
-                    id=user_data['id'],
-                    username=user_data['username'],
-                    given_name=user_data['given_name'],
-                    family_name=user_data['family_name'],
+                    id=user_id,
+                    username=kc_user_data.get('username', username),
+                    given_name=kc_user_data.get('firstName', ''),
+                    family_name=kc_user_data.get('lastName', ''),
                     enabled=True,
                 )
             await connection.commit()
+
         return proxy_pb2.ConnectResponse(
             result=proxy_pb2.ConnectResult(
                 user=user_id,
-            ),
+                b64info=b64encode(json.dumps({
+                    "username": username
+                }).encode('utf-8'))
+            )
         )
 
     async def Subscribe(
@@ -107,7 +109,7 @@ class ProxyService(proxy_pb2_grpc.CentrifugoProxyServicer):
             await connection.commit()
         return proxy_pb2.SubscribeResponse(
             result=proxy_pb2.SubscribeResult(
-                info=json.dumps({"can_publish": "aaaa"}).encode()
+                info=json.dumps({"can_publish": "true"}).encode()
             )
         )
 

@@ -76,7 +76,7 @@ const getToken = async () => {
             console.log("token accepted");
             refresh_token = result.refresh_token;
             console.log(result);
-            return result.access_token
+            return result.access_token;
         })
         .catch((error) => {
             console.error(error);
@@ -97,7 +97,7 @@ document.getElementById("btnLogin").addEventListener("click", () => {
                 client = new Centrifuge(
                     "ws://127.0.0.1:8080/centrifugo/connection/websocket",
                     {
-                        data: { token: token }
+                        data: { token: token },
                     }
                 );
                 client.on("connected", () => {
@@ -106,20 +106,25 @@ document.getElementById("btnLogin").addEventListener("click", () => {
                     connected = true;
                     document.getElementById("loginForm").style.display = "none";
                     document.getElementById("userInfo").style.display = "flex";
-                    document.getElementById("userHello").textContent = "Hello, " + username;
-                    client.rpc("get_user_channels").then(function(res) {
-                        res.data.channels.forEach((channel) => {
-                            createSub(channel);
-                        });
-                    }, function(err) {
-                        console.log('rpc error', err);
-                    });
+                    document.getElementById("userHello").textContent =
+                        "Hello, " + username;
+                    client.rpc("get_user_channels").then(
+                        function (res) {
+                            res.data.channels.forEach((channel) => {
+                                createSub(channel);
+                            });
+                        },
+                        function (err) {
+                            console.log("rpc error", err);
+                        }
+                    );
                 });
                 client.on("disconnected", () => {
                     refresh_token = "";
                     client.setToken("");
                     connected = false;
-                    document.getElementById("loginForm").style.display = "block";
+                    document.getElementById("loginForm").style.display =
+                        "block";
                     document.getElementById("userInfo").style.display = "none";
                 });
                 client.connect();
@@ -172,12 +177,11 @@ document.getElementById("btnConnect").addEventListener("click", () => {
     createSub(channel_name);
 });
 
-
 document.getElementById("btnPublish").addEventListener("click", () => {
     if (messageInput.value != "") {
         current_sub.publish({
             from: username,
-            message: messageInput.value
+            message: messageInput.value,
         });
         messageInput.value = "";
     }
