@@ -2,7 +2,8 @@
 # versions:
 #   sqlc v1.29.0
 # source: ws-requests.sql
-from typing import AsyncIterator, Iterator, Optional
+import dataclasses
+from typing import Any, AsyncIterator, Iterator, Optional
 import uuid
 
 import sqlalchemy
@@ -24,6 +25,21 @@ INSERT INTO "public"."user"
 ("id", "username", "given_name", "family_name", "enabled")
 VALUES(:p1, :p2, :p3, :p4, :p5)
 """
+
+
+GET_CHANNEL_BY_NAME = """-- name: get_channel_by_name \\:one
+SELECT id, channel, title, default
+FROM channel
+WHERE channel = :p1
+"""
+
+
+@dataclasses.dataclass()
+class GetChannelByNameRow:
+    id: int
+    channel: str
+    title: str
+    column_4: Optional[Any]
 
 
 GET_USER_BY_ID = """-- name: get_user_by_id \\:one
@@ -95,6 +111,17 @@ class Querier:
             "p5": enabled,
         })
 
+    def get_channel_by_name(self, *, channel: str) -> Optional[GetChannelByNameRow]:
+        row = self._conn.execute(sqlalchemy.text(GET_CHANNEL_BY_NAME), {"p1": channel}).first()
+        if row is None:
+            return None
+        return GetChannelByNameRow(
+            id=row[0],
+            channel=row[1],
+            title=row[2],
+            column_4=row[3],
+        )
+
     def get_user_by_id(self, *, id: uuid.UUID) -> Optional[models.User]:
         row = self._conn.execute(sqlalchemy.text(GET_USER_BY_ID), {"p1": id}).first()
         if row is None:
@@ -156,6 +183,17 @@ class AsyncQuerier:
             "p4": family_name,
             "p5": enabled,
         })
+
+    async def get_channel_by_name(self, *, channel: str) -> Optional[GetChannelByNameRow]:
+        row = (await self._conn.execute(sqlalchemy.text(GET_CHANNEL_BY_NAME), {"p1": channel})).first()
+        if row is None:
+            return None
+        return GetChannelByNameRow(
+            id=row[0],
+            channel=row[1],
+            title=row[2],
+            column_4=row[3],
+        )
 
     async def get_user_by_id(self, *, id: uuid.UUID) -> Optional[models.User]:
         row = (await self._conn.execute(sqlalchemy.text(GET_USER_BY_ID), {"p1": id})).first()

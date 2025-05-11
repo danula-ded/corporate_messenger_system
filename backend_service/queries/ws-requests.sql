@@ -48,3 +48,8 @@ SELECT $1, c.id, $3
 FROM channel c
 WHERE c.channel = $2
 ON CONFLICT (user_id, chan_id) DO NOTHING;
+
+-- name: GetChannelByName :one
+SELECT id, channel, title, default
+FROM channel
+WHERE channel = $1;
