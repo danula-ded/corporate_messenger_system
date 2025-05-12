@@ -1,0 +1,5 @@
+python -m grpc_tools.protoc `
+  -I protofiles `
+  --python_out=backend_service/src/api/grpc/protobufs/proxy `
+  --grpc_python_out=backend_service/src/api/grpc/protobufs/proxy `
+  protofiles/proxy.proto
